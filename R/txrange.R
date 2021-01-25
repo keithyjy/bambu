@@ -572,14 +572,14 @@ trainGeneModel = function(features, labels, names, plot = NULL, saveFig = T,
   geneScore = calculateGeneScore(features, labels, names, method = method)
   if(!is.null(plot)){
     if(saveFig){
-      svg(paste0(savePath,'/',plot,"geneModel_ROC.svg"), width = 7, height = 7)
+      svg(paste0(plot,"/geneModel_ROC.svg"), width = 7, height = 7)
       plotGeneModel(features, labels, method = method)
       dev.off()
     } else{
       plotGeneModel(features, labels, method = method)
     }
     if(saveFig){
-      svg(paste0(savePath,plot, "geneModel_Pres_Sens.svg"), width = 7, height = 7)
+      svg(paste0(plot, "/geneModel_Pres_Sens.svg"), width = 7, height = 7)
     }
     measure = measureit(score = geneScore$model$score, 
       class = geneScore$model$testLabels, measure = c("SENS", "PREC"))
