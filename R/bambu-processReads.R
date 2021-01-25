@@ -88,8 +88,11 @@ bambu.processReadsByFile <- function(bam.file, genomeSequence, annotations,
         annotations, stranded, verbose)
     se = isore.constructReadClassesOutput$se
     readGrgList = isore.constructReadClassesOutput$readGrgList
-    se = txrange.filterReadClasses(se, readGrgList, genomeSequence, annotations)
     GenomeInfoDb::seqlevels(se) <- refSeqLevels
+    dir.create(file.path(readClass.outputDir, names(bam.file)), showWarnings = FALSE)
+    print(file.path(readClass.outputDir, names(bam.file)))
+    se = txrange.filterReadClasses(se, readGrgList, genomeSequence, annotations,
+        outputPrefix = paste0(readClass.outputDir,names(bam.file),'/',names(bam.file)))
     if (!is.null(readClass.outputDir)) {
         readClassFile <- paste0(readClass.outputDir,names(bam.file),
             "_readClassSe.rds")
@@ -102,11 +105,12 @@ bambu.processReadsByFile <- function(bam.file, genomeSequence, annotations,
                 readClass.outputDir, ask = FALSE),
                 paste0(names(bam.file),"_readClassSe"), ext = ".rds")
         }
-        saveRDS(se, file = readClassFile)
+        print(paste0(readClass.outputDir,names(bam.file),'/',names(bam.file)))
+        saveRDS(se, file = paste0(readClass.outputDir,names(bam.file),'/',names(bam.file),"_readClassSe.rds"))
+        saveRDS(readGrgList, file = paste0(readClass.outputDir,names(bam.file),'/',names(bam.file),"_readGrgList.rds"))
         se <- readClassFile
     }
-    return(se)
-
+    return(list(se = se, readGrgList = readGrgList))
 }
 
 #' Check seqlevels for reads and annotations

@@ -13,20 +13,20 @@ if(F){
 }
 
 txrange.filterReadClasses = function(se, readGrgList, genomeSequence,
-      annotations, withAdapters = FALSE, min.readCount = 2){
-
+      annotations, withAdapters = FALSE, min.readCount = 2, 
+      outputPrefix = NULL){
     options(scipen = 999)
     #alignData = createAlignData(readGrgList)
     #alignData = annotateReadStartsAndEnds(alignData, se)
-    rm(readGrgList)
     se = combineSEs(list(se), annotations)
     se = addRowData(se, genomeSequence, annotations)
     thresholdIndex = which(rowSums(assays(se)$counts)
         >=min.readCount)
+    saveFig = ifelse(!is.null(outputPrefix),T,F)
     rowData(se)$geneScore = getGeneScore(se, thresholdIndex, 
-      plot = "NULL", method = "xgboost")
+      plot = outputPrefix, saveFig = saveFig, method = "xgboost")
     rowData(se)$txScore = getTranscriptScore(se, thresholdIndex, 
-      plot = "NULL", method = "xgboost")
+      plot = outputPrefix, saveFig = saveFig, method = "xgboost")
     
     # test model on subset and nonsubset RCs
     # subset = rowData(se)$compatibleCount >= 2 | 
@@ -35,6 +35,9 @@ txrange.filterReadClasses = function(se, readGrgList, genomeSequence,
     #                    plot = "NULL", method = "xgboost")
     # getTranscriptScore(se[which(subset),], thresholdIndex, 
     #                    plot = "NULL", method = "xgboost")
+
+    #save(se, file = paste0(outputPrefix))
+    #save(readGrgList, file = paste0(outputPrefix,"_"))
     return(se)
 }
 
@@ -197,152 +200,6 @@ addRowData = function(se, genomeSequence, annotations){
   se = countPolyATerminals(se, genomeSequence)
  
   return(se)
-}
-
-assignGeneIDs <- function(se, annotationGrangesList, min.exonOverlap = 35){
-  ## (1) Spliced Reads
-   seFilteredSpliced <- se[(rowData(se)$confidenceType == 'highConfidenceJunctionReads' | rowData(se)$confidenceType == 'lowConfidenceJunctionReads'),]
-  
-  mcols(seFilteredSpliced)$GENEID <- NA
-  
-  intronsByReadClass= makeGRangesListFromFeatureFragments(seqnames=rowData(seFilteredSpliced)$chr.rc,
-                                                          fragmentStarts=rowData(seFilteredSpliced)$intronStarts,
-                                                          fragmentEnds=rowData(seFilteredSpliced)$intronEnds,
-                                                          strand=rowData(seFilteredSpliced)$strand.rc)
-  
-  names(intronsByReadClass) <- 1:length(intronsByReadClass)
-  seqlevels(intronsByReadClass) <-  unique(c(seqlevels(intronsByReadClass), seqlevels(annotationGrangesList)))
-  
-  exonEndsShifted <-paste(rowData(seFilteredSpliced)$intronStarts,
-                          rowData(seFilteredSpliced)$end.rc + 1,
-                          sep=',')
-  exonStartsShifted <- paste(rowData(seFilteredSpliced)$start.rc - 1,
-                             rowData(seFilteredSpliced)$intronEnds,
-                             sep=',')
-  
-  exonsByReadClass <- makeGRangesListFromFeatureFragments(seqnames=rowData(seFilteredSpliced)$chr.rc,
-                                                          fragmentStarts=exonStartsShifted,
-                                                          fragmentEnds=exonEndsShifted,
-                                                          strand=rowData(seFilteredSpliced)$strand.rc)
-  exonsByReadClass <- narrow(exonsByReadClass, start = 2, end = -2)  # correct junction to exon differences in coordinates
-  names(exonsByReadClass) <- 1:length(exonsByReadClass)
-  
-  # add exon start and exon end rank
-  unlistData <- unlist(exonsByReadClass, use.names = FALSE)
-  partitioning <- PartitioningByEnd(cumsum(elementNROWS(exonsByReadClass)), names=NULL)
-  
-  exon_rank <- sapply(width((partitioning)), seq, from=1)
-  exon_rank[which(rowData(seFilteredSpliced)$strand == '-')] <- lapply(exon_rank[which(rowData(seFilteredSpliced)$strand == '-')], rev)  # * assumes positive for exon ranking
-  exon_endRank <- lapply(exon_rank, rev)
-  unlistData$exon_rank <- unlist(exon_rank)
-  unlistData$exon_endRank <- unlist(exon_endRank)
-  
-  exonsByReadClass <- relist(unlistData, partitioning)
-  
-  seqlevels(exonsByReadClass) <-  unique(c(seqlevels(exonsByReadClass), seqlevels(annotationGrangesList)))
-  
-  ovExon <- findSpliceOverlapsQuick(cutStartEndFromGrangesList(exonsByReadClass),
-                                    cutStartEndFromGrangesList(annotationGrangesList))
-  
-  ## annotate with transcript and gene Ids
-  mcols(seFilteredSpliced)$GENEID[queryHits(ovExon[mcols(ovExon)$compatible][!duplicated(queryHits(ovExon[mcols(ovExon)$compatible]))])] <- mcols(annotationGrangesList[subjectHits(ovExon[mcols(ovExon)$compatible])[!duplicated(queryHits(ovExon[mcols(ovExon)$compatible]))]])$GENEID # annotate with compatible gene id,
-  mcols(seFilteredSpliced)$GENEID[queryHits(ovExon[mcols(ovExon)$equal][!duplicated(queryHits(ovExon[mcols(ovExon)$equal]))])] <- mcols(annotationGrangesList[subjectHits(ovExon[mcols(ovExon)$equal])[!duplicated(queryHits(ovExon[mcols(ovExon)$equal]))]])$GENEID # annotate as identical,
-
-  ## using intron matches
-  unlistedIntrons <- unlist(intronsByReadClass, use.names=TRUE)
-  partitioning <- PartitioningByEnd(cumsum(elementNROWS(intronsByReadClass)), names=NULL)
-  
-  unlistedIntronsAnnotations <- unlist(myGaps(annotationGrangesList))
-  mcols(unlistedIntronsAnnotations)$GENEID <- mcols(annotationGrangesList)$GENEID[match(names(unlistedIntronsAnnotations), mcols(annotationGrangesList)$TXNAME)]
-  
-  intronMatches <- GenomicRanges::match(unlistedIntrons, unique(unlistedIntronsAnnotations), nomatch=0) > 0
-  intronMatchesList <- relist(intronMatches, partitioning)
-  
-  lastJunctionMatch <- unlist(endoapply(endoapply(intronMatchesList, rev), '[[', 1))
-  firstJunctionMatch <- unlist(endoapply(intronMatchesList, '[[', 1))
-  
-  ## assign gene ids based on the maximum number of matching introns/splice junctions
-  overlapsNewIntronsAnnotatedIntrons <- findOverlaps(unlistedIntrons,
-                                                     unlistedIntronsAnnotations,
-                                                     type='equal',
-                                                     select='all',
-                                                     ignore.strand=FALSE)
-  
-  maxGeneCountPerNewTx <- tbl_df(data.frame(txId=names(unlistedIntrons)[queryHits(overlapsNewIntronsAnnotatedIntrons)],
-                                            geneId=mcols(unlistedIntronsAnnotations)$GENEID[subjectHits(overlapsNewIntronsAnnotatedIntrons)],
-                                            stringsAsFactors=FALSE)) %>%
-    group_by(txId, geneId) %>%
-    summarise(geneCount=n()) %>%
-    group_by(txId) %>%
-    filter(geneCount == max(geneCount)) %>%
-    filter(!duplicated(txId)) %>%
-    ungroup()
-  
-  geneIdByIntron <- rep(NA,length(exonsByReadClass))
-  geneIdByIntron <- maxGeneCountPerNewTx$geneId[match(names(exonsByReadClass), maxGeneCountPerNewTx$txId)]
-  mcols(seFilteredSpliced)$GENEID[is.na(mcols(seFilteredSpliced)$GENEID)] <- geneIdByIntron[is.na(mcols(seFilteredSpliced)$GENEID)]
-  
-  ## unspliced transcripts
-  if(any(rowData(se)$confidenceType == 'unsplicedNew')) {
-    seFilteredUnspliced <- se[(rowData(se)$confidenceType == 'unsplicedNew' | rowData(se)$confidenceType == 'unsplicedWithin'), ]
-    exonsByReadClassUnspliced= GRanges(seqnames=rowData(seFilteredUnspliced)$chr.rc,
-                                       ranges=IRanges(start=rowData(seFilteredUnspliced)$start.rc,
-                                                      end=rowData(seFilteredUnspliced)$end.rc),
-                                       strand=rowData(seFilteredUnspliced)$strand.rc)
-    
-    partitioning <- PartitioningByEnd(1:length(exonsByReadClassUnspliced), names=NULL)
-    exonsByReadClassUnspliced$exon_rank <- rep(1, length(exonsByReadClassUnspliced))
-    exonsByReadClassUnspliced$exon_endRank <- rep(1, length(exonsByReadClassUnspliced))
-    exonsByReadClassUnspliced <- relist(exonsByReadClassUnspliced, partitioning)
-    seqlevels(exonsByReadClassUnspliced) <-  unique(c(seqlevels(exonsByReadClassUnspliced), seqlevels(annotationGrangesList)))
-    mcols(seFilteredUnspliced)$GENEID <- NA
-    #mcols(seFilteredUnspliced)$readClassType <- 'unsplicedNew'
-    
-    ## here: add filter to remove unspliced transcripts which overlap with known transcripts/high quality spliced transcripts
-    # overlapUnspliced <- findOverlaps(exonsByReadClassUnspliced,
-    #                                  annotationGrangesList,
-    #                                  minoverlap=min.exonOverlap,
-    #                                  select='first')
-    # seFilteredUnspliced <- seFilteredUnspliced[is.na(overlapUnspliced)]
-    # exonsByReadClassUnspliced <- exonsByReadClassUnspliced[is.na(overlapUnspliced)]
-    seFilteredUnspliced <- seFilteredUnspliced
-    exonsByReadClassUnspliced <- exonsByReadClassUnspliced
-    
-    ## combined spliced and unspliced Tx candidates
-    seCombined <- SummarizedExperiment::rbind(seFilteredSpliced, seFilteredUnspliced)
-    exonRangesCombined<- c(exonsByReadClass, exonsByReadClassUnspliced)
-    names(exonRangesCombined) <- 1:length(exonRangesCombined)
-  } else {
-    seCombined <- seFilteredSpliced
-    exonRangesCombined<- exonsByReadClass
-    names(exonRangesCombined) <- 1:length(exonRangesCombined)
-  }
-  exonMatchGene <- findOverlaps(exonRangesCombined,
-                                annotationGrangesList,
-                                select='arbitrary',
-                                minoverlap=min.exonOverlap)
-  geneIdByExon <- rep(NA,length(exonRangesCombined))
-  geneIdByExon[!is.na(exonMatchGene)] <- mcols(annotationGrangesList)$GENEID[exonMatchGene[!is.na(exonMatchGene)]]
-  geneIdByExon[!is.na(mcols(seCombined)$GENEID)] <-  mcols(seCombined)$GENEID[!is.na(mcols(seCombined)$GENEID)]
-  exonMatchGene <- findOverlaps(exonRangesCombined[is.na(geneIdByExon)],
-                                exonRangesCombined[!is.na(geneIdByExon)],
-                                select = 'arbitrary',
-                                minoverlap = min.exonOverlap)
-  while(any(!is.na(exonMatchGene))) {
-    geneIdByExon[is.na(geneIdByExon)][!is.na(exonMatchGene)] <- geneIdByExon[!is.na(geneIdByExon)][exonMatchGene[!is.na(exonMatchGene)]]
-    exonMatchGene <- findOverlaps(exonRangesCombined[is.na(geneIdByExon)],
-                                  exonRangesCombined[!is.na(geneIdByExon)],
-                                  select = "arbitrary", minoverlap = min.exonOverlap)
-  }
-  mcols(seCombined)$GENEID[is.na(mcols(seCombined)$GENEID)] <- geneIdByExon[is.na(mcols(seCombined)$GENEID)]
-  if(any(is.na(mcols(seCombined)$GENEID))){
-    
-    newGeneIds <- assignNewGeneIds(exonRangesCombined[is.na(mcols(seCombined)$GENEID)], minoverlap=5, ignore.strand=F)
-    
-    mcols(seCombined)$GENEID[as.integer(newGeneIds$readClassId)] <- newGeneIds$geneId
-  }
-  
-  return(seCombined)
 }
 
 calculateGeneProportion = function(resultOutput){
@@ -677,12 +534,13 @@ prepareGeneModelFeatures = function(se){
   return(list(features=features, labels = labels, names = geneIDs))
 }
 
-getGeneScore = function(se, thresholdIndex, plot = NULL, method = "sgboost"){
+getGeneScore = function(se, thresholdIndex, plot = NULL, saveFig = F,
+  method = "xgboost"){
   geneFeatures = prepareGeneModelFeatures(se[thresholdIndex,])
     if(checkFeatures(geneFeatures)){
     geneModel = trainGeneModel(geneFeatures$features, 
       geneFeatures$labels, geneFeatures$names, 
-      plot = plot, saveFig = F, method)
+      plot = plot, saveFig = saveFig, method)
     geneScore = calculateGeneScore(geneFeatures$features, geneFeatures$labels, 
       geneFeatures$names, model = geneModel, method = method)$score
     rowData(se)$geneScore = geneScore[rowData(se)$GENEID]
@@ -714,14 +572,14 @@ trainGeneModel = function(features, labels, names, plot = NULL, saveFig = T,
   geneScore = calculateGeneScore(features, labels, names, method = method)
   if(!is.null(plot)){
     if(saveFig){
-      svg(paste0(savePath,'/',plot,"_ROC.svg"), width = 7, height = 7)
+      svg(paste0(savePath,'/',plot,"geneModel_ROC.svg"), width = 7, height = 7)
       plotGeneModel(features, labels, method = method)
       dev.off()
     } else{
       plotGeneModel(features, labels, method = method)
     }
     if(saveFig){
-      svg(paste0(savePath,plot, "_Pres_Sens.svg"), width = 7, height = 7)
+      svg(paste0(savePath,plot, "geneModel_Pres_Sens.svg"), width = 7, height = 7)
     }
     measure = measureit(score = geneScore$model$score, 
       class = geneScore$model$testLabels, measure = c("SENS", "PREC"))
@@ -759,14 +617,15 @@ calculateGeneScore = function(features, labels, names, model = NULL,
 }
 
 getTranscriptScore = function(se, thresholdIndex, plot = NULL, 
-  method = "xgboost"){
+  method = "xgboost", saveFig = F){
   txFeatures = prepareTranscriptModelFeatures(se,
     withAdapters = withAdapters)
   if(checkFeatures(txFeatures)){
     txIndex = thresholdIndex[thresholdIndex %in% 
       which(!rowData(se)$novel)]
     transcriptModel = trainTranscriptModel(txFeatures$features[txIndex,], 
-      txFeatures$labels[txIndex], plot = plot, saveFig = F, method = method)
+      txFeatures$labels[txIndex], plot = plot, saveFig = saveFig, 
+      method = method)
     transcriptScore = predict(transcriptModel, txFeatures$features,
       s = "lambda.min", type="response")
     rowData(se)$transcriptScore = transcriptScore
@@ -778,21 +637,24 @@ getTranscriptScore = function(se, thresholdIndex, plot = NULL,
     rowData(se)$transcriptScore = rep(1,nrow(se))
   }
 }
-trainTranscriptModel = function(features, labels, plot = NULL, saveFig = T, 
+trainTranscriptModel = function(features, labels, plot = NULL, saveFig = F, 
   method = "xgboost"){
-  print(method)
   result=calculateScore(features, labels, method = method)
   if(!is.null(plot)){
+    if(sum(result$testLabels)==length(result$testLabels) | sum(result$testLabels)==0){
+      message("Insufficient T/F labels to plot")
+      return(result$cvfit)
+    }
     if(saveFig){
-      svg(paste0('/',plot,"_ROC.svg"), width = 7, height = 7)
-      plotTranscriptModel(features, labels, plot, method = method)
+      svg(paste0(plot,"_txModel_ROC.svg"), width = 7, height = 7)
+      plotTranscriptModel(result, features, labels, method = method)
       dev.off()
     } else{
-      plotTranscriptModel(features, labels, plot, method = method)
+      plotTranscriptModel(result, features, labels, method = method)
     }
 
     if(saveFig){
-      svg(paste0(savePath,'/',plot, "_Pres_Sens.svg"), width = 7, height = 7)
+      svg(paste0(plot, "_txModel_Pres_Sens.svg"), width = 7, height = 7)
     }
     measure = measureit(score = result$score, class = result$testLabels,
       measure = c("SENS", "PREC"))
@@ -841,14 +703,13 @@ plotGeneModel = function(features, labels, method = "xgboost"){
   legend("bottomright", legend=legend, col = colours[1:i],lty=1, cex=1)
 }
 
-plotTranscriptModel = function(features, labels, plot, method = "xgboost"){
+plotTranscriptModel = function(result, features, labels, method = "xgboost"){
   legend = NULL
   i= 1
   colours = c('black','gray','red','blue', 'green', 'purple', 'orange', 
     'yellow', 'brown', 'pink', 'darksalmon', 'darkslategray4', 'deeppink2', 
     'goldenrod', 'burlywood1')
-  
-  result = calculateScore(features, labels, method = method)
+  #result = calculateScore(features, labels, method = method)
   x=rocit(score=result$score, class=result$testLabels)
   base::plot(x$FPR, x$TPR, col=colours[i],  main="Transcript Score ROC", 
     type ='l')
@@ -859,13 +720,11 @@ plotTranscriptModel = function(features, labels, plot, method = "xgboost"){
   text(0.8,0.6,c(paste0("All-AUC:",as.character(signif(x$AUC,3)))), cex=1.5)
   legend = c(legend, c("All"))
   i = i+1
-  
   x=rocit(score=result$testData[,1], class=result$testLabels)
   lines(x$FPR, x$TPR, col=colours[i],  main="reads")
   text(0.8,0.5,c(paste0("Read-AUC:",as.character(signif(x$AUC,3)))), cex=1.5)
   legend = c(legend, c("Number of Reads"))
   i = i+1
-  
   lines(c(0,1),c(0,1))
   
   # for(feature in colnames(features)[-which(colnames(features)=="numReads")]){
