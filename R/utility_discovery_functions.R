@@ -789,7 +789,7 @@ addGeneIdsToReadClassTable <- function(readClassTable, distTable,
         unlist((filter(distTable, compatible) %>% distinct()))
     start.ptm <- proc.time()
     # assign read classes to genes based on the highest read count per gene
-    readClassToGeneIdTable <- select(distTable, readClassId, GENEID,
+    readClassToGeneIdTable <- dplyr::select(distTable, readClassId, GENEID,
         readCount) %>% group_by(GENEID) %>%
         mutate(geneCount = sum(readCount)) %>% distinct() %>%
         group_by(readClassId) %>% filter(geneCount == max(geneCount)) %>%
@@ -923,7 +923,7 @@ includeOverlapReadClass <- function(candidateList, filteredOverlapList) {
         ungroup() %>%
         dplyr::select(queryHits, subjectHits.y) %>%
         distinct() %>%
-        rename(subjectHits = subjectHits.y)
+        dplyr::rename(subjectHits = subjectHits.y)
     return(temp)
 }
 

@@ -81,7 +81,7 @@ createJunctionTable <- function(unlisted_junctions,
         unlisted_junctions[strand(unlisted_junctions) == '-'], 
         ignore.strand = TRUE)
     junctionSeqStart <- BSgenome::getSeq(genomeSequence,
-        shift(flank(uniqueJunctions,width = 2), 2))#shift from IRanges
+        IRanges::shift(flank(uniqueJunctions,width = 2), 2))#shift from IRanges
     junctionSeqEnd <- BSgenome::getSeq(genomeSequence,
         IRanges::shift(flank(uniqueJunctions,width = 2, start = FALSE), -2))
     mcols(uniqueJunctions) <- DataFrame(tibble(

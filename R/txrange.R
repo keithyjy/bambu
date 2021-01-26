@@ -192,7 +192,7 @@ addRowData = function(se, genomeSequence, annotations){
   rowData(se)$equal = classifications$equal
   rowData(se)$compatible = classifications$compatible
   rowData(se)$compatibleCount = classifications$compatibleCount
-  se = assignGeneIDs(se, annotations)
+  rowData(se)$GENEID = assignGeneIds(readClassesList, annotations)
   rowData(se)$novel = grepl("gene.", 
       rowData(se)$GENEID)
   se = calculateGeneProportion(se)
