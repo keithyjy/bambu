@@ -56,6 +56,7 @@ createAlignData = function(readGrgList){
   return(alignData)
 }
 
+#deprecated
 annotateReadStartsAndEnds = function(alignData, se){
   #assign labels to reads
   #rownames(allReadClasses)=allReadClasses$`readClasses$readClassId`
@@ -81,6 +82,7 @@ annotateReadStartsAndEnds = function(alignData, se){
   return(alignData)
 }
 
+#deprecated
 simplifyAdapterData = function(alignData){
   # NOT USED WHEN NO ADAPTERS IN DATA
   alignData$adap5 = grepl('5', alignData$predictedStrand, fixed=TRUE)
@@ -129,6 +131,7 @@ simplifyAdapterData = function(alignData){
    return(alignData)
 }
 
+#deprecated
 summeriseReadsByGroup <- function(alignData, withAdapters = FALSE){
   
   alignData=alignData[which(!is.na(alignData$readClass)),]
@@ -275,36 +278,13 @@ getReadClassClassifications = function(query, subject, maxDist = 5){
     equal = rep(F, length(query))
     equal[queryHits(olapEqual)] = T
     
-    return(list(equal = equal, compatible = compatible, compatibleCount = compatibleCount))
+    return(list(equal = equal, compatible = compatible, 
+      compatibleCount = compatibleCount))
 }
 
 getTranscriptProp = function(se, readClassesList){
   # calculates the min and max contributions a read class makes to all
-  # the transcripts it is compatible too
-  #allOverlaps = NULL
   i= 0
-
-  # readClassListByChr = lapply(seqlevels(readClassesList), FUN = function(chr){
-  #   selection = which(unlist(runValue(seqnames(readClassesList))==chr))
-  #   return(readClassesList[selection])
-  # })
-  # i=0
-  # allOverlaps = lapply(readClassListByChr, FUN = function(readClassListTemp){
-  #   query <- cutStartEndFromGrangesList(readClassListTemp)
-  #   
-  #   overlaps = countOverlaps(query, readClassListTemp, type = 'within')
-  #   megaRCs = readClassesList[which(overlaps == 1),]
-  #   overlaps = findOverlaps(query, megaRCs, type = 'within')
-  #   
-  #   #account for the index change due to seperating the readclasses by chr
-  #   overlaps = as.matrix(overlaps)+i
-  #   i <<- i + length(readClassListTemp)
-  #   
-  #   return(overlaps)
-  # })
-  # allOverlaps = do.call(rbind, allOverlaps)
-  # 
-  
   allOverlaps = list()
   readClassesListToExtract = readClassesList
   for(x in 1:length(seqlevels(readClassesList))){
@@ -313,11 +293,9 @@ getTranscriptProp = function(se, readClassesList){
     readClassListTemp = readClassesListToExtract[selection]
     readClassesListToExtract= readClassesListToExtract[-selection]
     query <- cutStartEndFromGrangesList(readClassListTemp)
-    
     overlaps = countOverlaps(query, readClassListTemp, type = 'within')
     megaRCs = readClassesList[which(overlaps == 1),]
     overlaps = findOverlaps(query, megaRCs, type = 'within')
-    
     #account for the index change due to seperating the readclasses by chr
     overlaps = as.matrix(overlaps)+i
     i = i + length(readClassListTemp)
@@ -338,7 +316,6 @@ getTranscriptProp = function(se, readClassesList){
       names(transcriptProp) =  x[,2]
       return(transcriptProp)
   })
-  
   #align the proportions with the read class names
   transcriptProp = unlist(transcriptSums)
   indexes = unlist(sapply(transcriptSums, FUN = names))
@@ -440,8 +417,7 @@ getAgnosticFeatures = function(input){
   transcriptPropMin[is.na(transcriptPropMin)] = 0
 
   features = cbind(numReads, SD, SDend, geneReadProp, tx_strand_bias,
-    numAstart, numAend, numTstart,
-    numTend, transcriptProp,
+    numAstart, numAend, numTstart, numTend, transcriptProp,
     transcriptPropMin)
   
   return(features)
@@ -492,7 +468,6 @@ adapter_reads=log(rowSums(assays(input)$adapNumReads),2)
 prepareGeneModelFeatures = function(se){
   #group read classes by gene
   #summerize the features
-  
   temp = by(assays(se)$counts, rowData(se)$GENEID, sum)
   geneIDs = names(temp)
   labels = !grepl("gene.",geneIDs)

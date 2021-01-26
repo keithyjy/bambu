@@ -833,7 +833,7 @@ isore.estimateDistanceToAnnotations <- function(seReadClass,
     distTable$readCount <- assays(seReadClass)$counts[distTable$readClassId, ] 
 
     if (additionalFiltering) 
-        distTable <- left_join(distTable, select(readClassTable,
+        distTable <- left_join(distTable, dplyr::select(readClassTable,
             readClassId, confidenceType), by = "readClassId") %>%
             mutate(relativeReadCount = readCount / txNumberFiltered)
     distTable <- dplyr::select(distTable, annotationTxId, readClassId,
