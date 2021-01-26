@@ -621,7 +621,7 @@ trainTranscriptModel = function(features, labels, plot = NULL, saveFig = F,
       return(result$cvfit)
     }
     if(saveFig){
-      svg(paste0(plot,"_txModel_ROC.svg"), width = 7, height = 7)
+      svg(paste0(plot,"/txModel_ROC.svg"), width = 7, height = 7)
       plotTranscriptModel(result, features, labels, method = method)
       dev.off()
     } else{
@@ -629,7 +629,7 @@ trainTranscriptModel = function(features, labels, plot = NULL, saveFig = F,
     }
 
     if(saveFig){
-      svg(paste0(plot, "_txModel_Pres_Sens.svg"), width = 7, height = 7)
+      svg(paste0(plot, "/txModel_Pres_Sens.svg"), width = 7, height = 7)
     }
     measure = measureit(score = result$score, class = result$testLabels,
       measure = c("SENS", "PREC"))
@@ -756,7 +756,7 @@ fit_xgb = function(features, labels) {
   positive_labels = sum(train_labels == 1)
   xgb_time = system.time({xgb_model = xgboost(data = x_mat_train, 
   label = train_labels, nthread=2, max.depth = 3, nround= 100, 
-  objective = "binary:logistic", 
+  objective = "binary:logistic", eval_metric='error',
   scale_pos_weight=negative_labels/positive_labels, verbose = 0)})
   xgb_probs = predict(xgb_model, x_mat_val)
   return (list(score = xgb_probs, cvfit = xgb_model, testData = val_data, 
