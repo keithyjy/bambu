@@ -106,7 +106,7 @@ bambu.processReadsByFile <- function(bam.file, genomeSequence, annotations,
         }
         saveRDS(se, file = paste0(readClass.outputDir,names(bam.file),'/',names(bam.file),"_readClassSe.rds"))
         saveRDS(readGrgList, file = paste0(readClass.outputDir,names(bam.file),'/',names(bam.file),"_readGrgList.rds"))
-        se <- readClassFile
+        #se <- readClassFile
     }
     return(list(se = se, readGrgList = readGrgList))
 }
