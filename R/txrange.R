@@ -743,7 +743,7 @@ fit_xgb = function(features, labels) {
   train_idx = sample(nrow(features), floor(0.9*nrow(features)))
   val_idx = setdiff(seq_len(nrow(features)),train_idx)
   
-  train_data= features[train_idx,]
+  train_data = features[train_idx,]
   val_data = features[val_idx,]
   train_labels = labels[train_idx]
   val_labels = labels[val_idx]
@@ -755,8 +755,9 @@ fit_xgb = function(features, labels) {
   negative_labels = sum(train_labels == 0)
   positive_labels = sum(train_labels == 1)
   xgb_time = system.time({xgb_model = xgboost(data = x_mat_train, 
-  label = train_labels, nthread=2, max.depth = 3, nround= 100, 
-  objective = "binary:logistic", eval_metric='error',
+  label = train_labels, nthread=2, eta=1, max.depth=5, min_child_weight=5,
+  lambda=0, alpha=10, gamma=0, subsample=0.7, colsubsample_bytree=0.7,
+  nround= 300, objective = "binary:logistic", eval_metric='error',
   scale_pos_weight=negative_labels/positive_labels, verbose = 0)})
   xgb_probs = predict(xgb_model, x_mat_val)
   return (list(score = xgb_probs, cvfit = xgb_model, testData = val_data, 
