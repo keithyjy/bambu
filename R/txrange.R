@@ -380,7 +380,7 @@ prepareTranscriptModelFeatures = function(input, withAdapters = F){
   features = getAgnosticFeatures(input)
   
   if("adapNumReads" %in% names(assays(input))){
-    features(cbind(features,getAdapterFeatures(input)))
+    features = cbind(features,getAdapterFeatures(input))
   }
   
   return(list(features = features, labels = labels))
@@ -424,7 +424,9 @@ getAgnosticFeatures = function(input){
 }
 
 getAdapterFeatures = function(input){
-adapter_reads=log(rowSums(assays(input)$adapNumReads),2)
+  numReads = rowSums(assays(input)$counts)
+  
+  adapter_reads=log(rowSums(assays(input)$adapNumReads),2)
   adapter_reads[is.na(adapter_reads)]=0
   
   adapterEnd_reads=log(rowSums(assays(input)$adapEndNumReads),2)

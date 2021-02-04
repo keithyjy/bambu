@@ -87,7 +87,7 @@ writeToGTF <- function(annotation, file, geneIDs = NULL) {
     df$GENEID <- paste('gene_id "', df$GENEID, '";', sep = "")
     dfExon <- mutate(df, source = "Bambu", feature = "exon", score = ".",
         frame = ".", attributes = paste(GENEID, group_name, exon_rank)) %>%
-        select(seqnames, source, feature, start, end, score,
+        dplyr::select(seqnames, source, feature, start, end, score,
         strand, frame, attributes, group_name)
     dfTx <- as.data.frame(range(ranges(annotation)))
     dfTx <-
@@ -98,12 +98,12 @@ writeToGTF <- function(annotation, file, geneIDs = NULL) {
 
     dfTx <- mutate(dfTx,source = "Bambu", feature = "transcript", score = ".",
         frame = ".", attributes = paste(GENEID, group_name)) %>%
-        select(seqnames, source, feature, start, end, score,
+        dplyr::select(seqnames, source, feature, start, end, score,
         strand, frame, attributes, group_name)
 
     gtf <- rbind(dfTx, dfExon) %>% group_by(group_name) %>%
         arrange(as.character(seqnames), start) %>% ungroup() %>%
-        select(seqnames, source, feature, start, end, score,
+        dplyr::select(seqnames, source, feature, start, end, score,
         strand, frame, attributes)
     gtf <- mutate(gtf, strand = recode_factor(strand, `*` = "."))
     utils::write.table(gtf, file = file, quote = FALSE, row.names = FALSE,
